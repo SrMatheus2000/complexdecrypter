@@ -3,10 +3,6 @@ import { Grid, Typography, Button, Paper, Box, TextField } from '@material-ui/co
 import { Crypt, RSA } from 'hybrid-crypto-js';
 import CryptoJS from 'crypto-js'
 
-const salt = CryptoJS.lib.WordArray.random(128 / 8)
-const K = CryptoJS.PBKDF2("K", salt, { keySize: 128 / 32 })
-const IV = CryptoJS.PBKDF2("IV", salt, { keySize: 128 / 32 })
-
 function download(fileName, text) {
   let element = document.createElement('a');
   element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
@@ -26,24 +22,61 @@ function App() {
   let nome = useRef('')
   const [publicKey, setPublicKey] = useState('')
   const [privateKey, setPrivateKey] = useState('')
+  const [K, setK] = useState('')
+  const [IV, setIV] = useState('')
 
   const [kCripto, setKCripto] = useState('')
   const [IVCripto, setIVCripto] = useState('')
 
-  function gerarChaves() {
-    const keys = new RSA({ keySize: 4096, entropy: nome.value })
+  const [erro, setErro] = useState('')
 
+  //cifrar
+  function gerarChaves() {
+    if (!nome.value) {
+      setErro("Nome Obrigatorio")
+      return
+    }
+    const name = nome.value
+    setErro("")
+    const keys = new RSA({ keySize: 4096, entropy: name })
     keys.generateKeyPair(keys => {
-      download(`PR${nome.value.split('')[0].toLowerCase()}.txt`, keys.privateKey)
-      download(`PU${nome.value.split('')[0].toLowerCase()}.txt`, keys.publicKey)
-      setPrivateKey(keys.privateKey)
-      setPublicKey(keys.publicKey)
+      download(`PR${name.split('')[0].toLowerCase()}.txt`, keys.privateKey)
+      download(`PU${name.split('')[0].toLowerCase()}.txt`, keys.publicKey)
     })
+    const salt = CryptoJS.lib.WordArray.random(128 / 8)
+    download('K.txt', CryptoJS.PBKDF2("K", salt, { keySize: 128 / 32 }))
+    download('IV.txt', CryptoJS.PBKDF2("IV", salt, { keySize: 128 / 32 }))
+    setPasso(1)
+  }
+
+  function carregarPU(e) {
+    let reader = new FileReader()
+    reader.readAsBinaryString(e.target.files[0])
+    reader.onload = (e) => {
+      setPublicKey(e.target.result)
+      setPasso(2)
+    }
+  }
+
+  function carregarK(e) {
+    let reader = new FileReader()
+    reader.readAsBinaryString(e.target.files[0])
+    reader.onload = (e) => {
+      setK(e.target.result)
+      setPasso(3)
+    }
+  }
+
+  function carregarIV(e) {
+    let reader = new FileReader()
+    reader.readAsBinaryString(e.target.files[0])
+    reader.onload = (e) => {
+      setIV(e.target.result)
+      setPasso(4)
+    }
   }
 
   function carregarX(e) {
-    download('K.txt', K)
-    download('IV.txt', IV)
     let reader = new FileReader()
     reader.readAsBinaryString(e.target.files[0])
     reader.onload = (e) => {
@@ -53,8 +86,10 @@ function App() {
       download('IV(criptografado).txt', crypt.encrypt(publicKey, IV))
     }
   }
+  //
 
 
+  //decifrar
   function carregarPR(e) {
     let reader = new FileReader()
     reader.readAsBinaryString(e.target.files[0])
@@ -64,16 +99,16 @@ function App() {
     }
   }
 
-  function carregarK(e) {
+  function carregarKCripto(e) {
     let reader = new FileReader()
     reader.readAsBinaryString(e.target.files[0])
     reader.onload = (e) => {
-     setKCripto(e.target.result)
+      setKCripto(e.target.result)
       setPasso(2)
     }
   }
 
-  function carregarIV(e) {
+  function carregarIVCripto(e) {
     let reader = new FileReader()
     reader.readAsBinaryString(e.target.files[0])
     reader.onload = (e) => {
@@ -92,7 +127,8 @@ function App() {
       download('X\'.txt', CryptoJS.AES.decrypt(e.target.result, k, { iv }).toString(CryptoJS.enc.Utf8))
     }
   }
-
+  //
+  
   return (
     <Grid container spacing={2} style={{ width: '100%', height: '100vh', display: 'flex', justifyContent: 'center', textAlign: 'center' }} >
       <Grid item xs={3} component={Paper}>
@@ -108,21 +144,32 @@ function App() {
 
         {tela === 'cifrar' &&
           <>
-            {publicKey === '' && privateKey === '' ?
+            {passo === 0 &&
               <Grid container>
                 <Grid item xs={8}>
-                  <TextField label='Digite seu Nome:' fullWidth variant='outlined' margin='dense' inputRef={input => nome = input} />
+                  <TextField error={!!erro} helperText={erro} label='Digite seu Nome:' fullWidth variant='outlined' margin='dense' inputRef={input => nome = input} />
                 </Grid>
                 <Grid item xs={4}>
                   <Button style={{ marginTop: '8px' }} variant='contained' fullWidth color='primary' onClick={gerarChaves}>Gerar Chaves</Button>
                 </Grid>
               </Grid>
-              :
-              <>
-                <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('x').click()}>Importar Arquivo (x.txt)</Button>
-                <input type='file' id='x' onChange={carregarX} hidden />
-              </>
             }
+            {passo === 1 && <>
+              <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('pr').click()}>Importar PU</Button>
+              <input type='file' id='pr' onChange={carregarPU} hidden />
+            </>}
+            {passo === 2 && <>
+              <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('k').click()}>Importar K</Button>
+              <input type='file' id='k' onChange={carregarK} hidden />
+            </>}
+            {passo === 3 && <>
+              <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('iv').click()}>Importar IV</Button>
+              <input type='file' id='iv' onChange={carregarIV} hidden />
+            </>}
+            {passo === 4 && <>
+              <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('x').click()}>Importar Arquivo (x.txt)</Button>
+              <input type='file' id='x' onChange={carregarX} hidden />
+            </>}
           </>
         }
 
@@ -134,11 +181,11 @@ function App() {
             </>}
             {passo === 1 && <>
               <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('k').click()}>Importar K criptografado</Button>
-              <input type='file' id='k' onChange={carregarK} hidden />
+              <input type='file' id='k' onChange={carregarKCripto} hidden />
             </>}
             {passo === 2 && <>
               <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('iv').click()}>Importar IV criptografado</Button>
-              <input type='file' id='iv' onChange={carregarIV} hidden />
+              <input type='file' id='iv' onChange={carregarIVCripto} hidden />
             </>}
             {passo === 3 && <>
               <Button color='primary' fullWidth variant='contained' onClick={() => document.getElementById('y').click()}>Importar Y</Button>
@@ -150,7 +197,7 @@ function App() {
       </Grid>
       <Grid item xs={3} component={Paper}>
       </Grid>
-    </Grid>
+    </Grid >
   );
 }
 
